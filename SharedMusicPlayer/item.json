@@ -1,0 +1,12 @@
+﻿{
+  "$schema": "https://gitlab.com/vtolvr-mods/ModLoader/-/raw/release/schema.json",
+  "Title": "Shared Music Player (Multiplayer)",
+  "Description": "Simple mod that allows you to sync your music with the co-pilot. ",
+  "PreviewImageUrl": "https://i.imgur.com/3icgCQM.png",
+  "MetaData": {
+    "DllName": "SharedMusicPlayer.dll",
+    "AllowLoadOnStart": true,
+    "ShowOnMainList": true,
+    "DllHash": ""
+  }
+}
