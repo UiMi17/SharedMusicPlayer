@@ -278,6 +278,13 @@ namespace SharedMusicPlayer
                     return;
                 }
 
+                string extension = Path.GetExtension(filePath).ToLower();
+                if (extension != ".mp3")
+                {
+                    Debug.LogWarning($"[MusicSenderSocket]: Skipping file '{filePath}' - only MP3 files are allowed.");
+                    return;
+                }
+
                 var fileBytes = File.ReadAllBytes(filePath);
                 var fileName = Path.GetFileName(filePath);
                 int totalChunks = (int)Math.Ceiling(fileBytes.Length / (double)ChunkSize);
