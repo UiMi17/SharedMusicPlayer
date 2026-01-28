@@ -35,7 +35,6 @@ namespace VtolVRMod
                     return false;
                 }
 
-                // Check if vehicle is multi-crew capable
                 var baseSlot = scene.GetMCBaseSlot(mySlot);
                 if (baseSlot == null)
                 {
@@ -48,15 +47,12 @@ namespace VtolVRMod
                     return false;
                 }
 
-                // Check if there's actually another crew member
                 ulong? otherCrewId = RadioNetSync.GetOtherCrewId(scene, mySlot);
                 if (otherCrewId == null)
                 {
-                    // No other crew member present = single-crew mode
                     return false;
                 }
 
-                // We have a multi-crew vehicle with another crew member
                 return true;
             }
             catch
@@ -66,32 +62,26 @@ namespace VtolVRMod
             }
         }
 
-        // Manage CockpitRadio's Start method - use SharedRadioController for multi-crew, original for single-crew
         [HarmonyPatch(typeof(CockpitRadio), "Start")]
         [HarmonyPrefix]
         public static bool Start_Prefix(CockpitRadio __instance)
         {
-            // If in multi-crew mode, use SharedRadioController to manage playlist
             if (IsMultiCrewMode())
             {
                 SharedRadioController.Instance?.EnsurePlaylist();
-                return false; // Prevent original Start from running
+                return false;
             }
             
-            // Single-crew mode: let original Start run to initialize playlist normally
             return true;
         }
 
-        // Initialize SharedCockpitRadioManager when CockpitRadio awakens
         [HarmonyPatch(typeof(CockpitRadio), "Awake")]
         [HarmonyPostfix]
         public static void Awake_Postfix(CockpitRadio __instance)
         {
-            // Reset state flags when entering a new vehicle
             _justStopped = false;
             _isAutoAdvanceNext = false;
             
-            // Ensure SharedCockpitRadioManager exists (only needed for multi-crew)
             if (SharedCockpitRadioManager.Instance == null)
             {
                 GameObject managerObj = new GameObject("SharedCockpitRadioManager");
@@ -100,18 +90,14 @@ namespace VtolVRMod
             }
             else
             {
-                // Manager already exists - re-initialize it for the new vehicle
-                // This is important when switching from single-crew to multi-crew
                 SharedCockpitRadioManager.Instance.ReinitializeForNewVehicle();
             }
         }
 
-        // Redirect PlayButton to manager
         [HarmonyPatch(typeof(CockpitRadio), "PlayButton")]
         [HarmonyPrefix]
         public static bool PlayButton_Prefix(CockpitRadio __instance)
         {
-            // If not in multi-crew mode, let original logic run (single-crew vehicle)
             if (!IsMultiCrewMode())
             {
                 return true;
@@ -119,25 +105,19 @@ namespace VtolVRMod
 
             if (isRemoteCall)
             {
-                // Allow original to run for remote calls (RPCs)
-                // Clear the just-stopped flag for remote calls since they're intentional
                 _justStopped = false;
                 return true;
             }
 
-            // If we just stopped, ignore this PlayButton call to prevent restarting
             if (_justStopped)
             {
                 SharedMusicPlayer.Logger.Log(
                     "PlayButton_Prefix: Just stopped, ignoring PlayButton call to prevent restart",
                     "CockpitRadioRedirectPatch");
-                _justStopped = false; // Clear the flag
-                return false; // Prevent original from running
+                _justStopped = false;
+                return false;
             }
 
-            // Check if music is currently playing (has clip and not paused)
-            // If so, treat this as a STOP command instead of just pause
-            // This ensures both players stop when one presses the stop/play button
             bool isCurrentlyPlaying = false;
             bool isPaused = false;
             try
@@ -154,47 +134,39 @@ namespace VtolVRMod
                     
                     if (audioSource != null && audioSource.clip != null)
                     {
-                        // Music is currently playing if there's a clip and it's not paused
                         isCurrentlyPlaying = !isPaused && audioSource.isPlaying;
                     }
                 }
             }
             catch { }
 
-            // Redirect to manager using command system
             if (SharedCockpitRadioManager.Instance != null)
             {
-                // If music is currently playing (not paused), pressing the button should STOP it
-                // This ensures both players stop when one presses the stop/play button
                 if (isCurrentlyPlaying)
                 {
                     SharedMusicPlayer.Logger.Log(
                         "PlayButton_Prefix: Music is currently playing, treating as STOP command",
                         "CockpitRadioRedirectPatch");
-                    _justStopped = true; // Set flag to prevent immediate restart
+                    _justStopped = true;
                     SharedCockpitRadioManager.Instance.ExecuteCommand(RadioCommand.Stop);
                 }
                 else
                 {
-                    // Music is paused or not playing, so this is a play/unpause command
                     SharedMusicPlayer.Logger.Log(
                         $"PlayButton_Prefix: Music is paused or not playing (isPaused={isPaused}), treating as PlayToggle command",
                         "CockpitRadioRedirectPatch");
                     SharedCockpitRadioManager.Instance.ExecuteCommand(RadioCommand.PlayToggle);
                 }
-                return false; // Prevent original from running
+                return false;
             }
 
-            // Fallback: allow original if manager not ready
             return true;
         }
 
-        // Redirect PrevSong to manager
         [HarmonyPatch(typeof(CockpitRadio), "PrevSong")]
         [HarmonyPrefix]
         public static bool PrevSong_Prefix(CockpitRadio __instance)
         {
-            // If not in multi-crew mode, let original logic run (single-crew vehicle)
             if (!IsMultiCrewMode())
             {
                 return true;
@@ -202,37 +174,28 @@ namespace VtolVRMod
 
             if (isRemoteCall)
             {
-                // Allow original to run for remote calls (RPCs)
                 return true;
             }
 
-            // Redirect to manager using command system
             if (SharedCockpitRadioManager.Instance != null)
             {
                 SharedCockpitRadioManager.Instance.ExecuteCommand(RadioCommand.Prev);
-                return false; // Prevent original from running
+                return false;
             }
 
-            // Fallback: allow original if manager not ready
             return true;
         }
 
-        // Flag to track if NextSong is being called as part of auto-advance
-        // Set by StreamSongRoutine patch before calling NextSong()
         private static bool _isAutoAdvanceNext = false;
         
-        // Public getter for logging (backward compatibility)
         public static bool IsAutoAdvanceStop => _isAutoAdvanceNext;
 
-        // Flag to prevent PlayButton from restarting immediately after Stop
         private static bool _justStopped = false;
 
-        // Redirect StopPlayingSong to manager
         [HarmonyPatch(typeof(CockpitRadio), "StopPlayingSong")]
         [HarmonyPrefix]
         public static bool StopPlayingSong_Prefix(CockpitRadio __instance)
         {
-            // If not in multi-crew mode, let original logic run (single-crew vehicle)
             if (!IsMultiCrewMode())
             {
                 return true;
@@ -256,51 +219,41 @@ namespace VtolVRMod
 
             if (isRemoteCall)
             {
-                // Allow original to run for remote calls (RPCs and internal calls from manager)
                 SharedMusicPlayer.Logger.Log(
                     "StopPlayingSong_Prefix: isRemoteCall=true, allowing original to run",
                     "CockpitRadioRedirectPatch");
                 return true;
             }
 
-            // If this is an auto-advance stop (streamFinished=true), set the flag for NextSong
-            // The StreamSongRoutine will then call NextSong(), which will check this flag
             if (streamFinished)
             {
                 _isAutoAdvanceNext = true;
                 SharedMusicPlayer.Logger.Log(
                     "StopPlayingSong_Prefix: Auto-advance stop detected (streamFinished=true), set _isAutoAdvanceNext=true, allowing direct execution",
                     "CockpitRadioRedirectPatch");
-                return true; // Let it execute directly, NextSong_Prefix will handle the auto-advance
+                return true;
             }
 
-            // Manual stop - redirect to manager
             SharedMusicPlayer.Logger.Log(
                 "StopPlayingSong_Prefix: Manual stop detected, redirecting to manager",
                 "CockpitRadioRedirectPatch");
 
             if (SharedCockpitRadioManager.Instance != null)
             {
-                // Execute the stop command - this will handle local execution and broadcasting
                 SharedCockpitRadioManager.Instance.ExecuteCommand(RadioCommand.Stop);
-                return false; // Prevent original from running (manager will execute it with isRemoteCall=true)
+                return false;
             }
 
-            // Fallback: allow original if manager not ready
             SharedMusicPlayer.Logger.Log("StopPlayingSong_Prefix: Manager not ready, allowing original", "CockpitRadioRedirectPatch");
             return true;
         }
 
-        // Redirect NextSong to manager
         [HarmonyPatch(typeof(CockpitRadio), "NextSong")]
         [HarmonyPrefix]
         public static bool NextSong_Prefix(CockpitRadio __instance)
         {
-            // If not in multi-crew mode, let original logic run (single-crew vehicle)
-            // This includes auto-advance functionality
             if (!IsMultiCrewMode())
             {
-                // Clear auto-advance flag to avoid state issues
                 _isAutoAdvanceNext = false;
                 return true;
             }
@@ -311,8 +264,6 @@ namespace VtolVRMod
 
             if (isRemoteCall)
             {
-                // Allow original to run for remote calls (RPCs and internal calls from manager)
-                // Clear the auto-advance flag since this is actual execution
                 bool wasAutoAdvance = _isAutoAdvanceNext;
                 _isAutoAdvanceNext = false;
                 SharedMusicPlayer.Logger.Log(
@@ -321,11 +272,9 @@ namespace VtolVRMod
                 return true;
             }
 
-            // Check if this is auto-advance (set by StreamSongRoutine patch)
             bool isAutoAdvance = _isAutoAdvanceNext;
-            _isAutoAdvanceNext = false; // Clear immediately after checking
+            _isAutoAdvanceNext = false;
 
-            // Check ownership
             bool isOwner = true;
             try
             {
@@ -346,14 +295,12 @@ namespace VtolVRMod
                 $"NextSong_Prefix: isAutoAdvance={isAutoAdvance}, isOwner={isOwner}",
                 "CockpitRadioRedirectPatch");
 
-            // If auto-advance and non-owner, suppress it (owner will broadcast)
             if (isAutoAdvance && !isOwner)
             {
                 SharedMusicPlayer.Logger.Log("NextSong_Prefix: Suppressing non-owner auto-advance", "CockpitRadioRedirectPatch");
-                return false; // Prevent auto-advance, wait for owner's broadcast
+                return false;
             }
 
-            // Redirect to manager (handles both manual and auto-advance)
             if (SharedCockpitRadioManager.Instance != null)
             {
                 if (isAutoAdvance)
@@ -366,22 +313,16 @@ namespace VtolVRMod
                     SharedMusicPlayer.Logger.Log("NextSong_Prefix: Manual NextSong call, redirecting to manager", "CockpitRadioRedirectPatch");
                     SharedCockpitRadioManager.Instance.ExecuteCommand(RadioCommand.Next);
                 }
-                return false; // Prevent original from running
+                return false;
             }
 
-            // Fallback: allow original if manager not ready
             return true;
         }
 
-        // Patch StreamSongRoutine to track when it's running
-        // This helps us detect auto-advance context
         [HarmonyPatch(typeof(CockpitRadio), "StreamSongRoutine")]
         [HarmonyPostfix]
         public static void StreamSongRoutine_Postfix(CockpitRadio __instance)
         {
-            // This postfix runs after the coroutine completes
-            // The flag should already be set by StopPlayingSong_Prefix when streamFinished=true
-            // But we can use this to verify the coroutine context if needed
             SharedMusicPlayer.Logger.Log("StreamSongRoutine_Postfix: Coroutine completed", "CockpitRadioRedirectPatch");
         }
     }

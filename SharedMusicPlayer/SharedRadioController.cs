@@ -119,7 +119,6 @@ namespace SharedMusicPlayer
         public int GetCurrentIndex()
         {
             EnsurePlaylist();
-            // Sync with CockpitRadio if available
             if (_cockpitRadio == null)
                 _cockpitRadio = UnityEngine.Object.FindObjectOfType<CockpitRadio>();
             if (_cockpitRadio != null && _cockpitRadio.songIdx != _currentIndex)
@@ -146,7 +145,6 @@ namespace SharedMusicPlayer
                 Logger.Log($"Setting index: {_currentIndex} -> {index}", "SharedRadioController");
                 _currentIndex = index;
                 
-                // Sync to CockpitRadio
                 if (_cockpitRadio == null)
                     _cockpitRadio = UnityEngine.Object.FindObjectOfType<CockpitRadio>();
                 if (_cockpitRadio != null)

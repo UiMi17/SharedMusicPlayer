@@ -21,7 +21,6 @@ namespace SharedMusicPlayer
         {
             ModFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             
-            // Initialize in-game logger
             GameObject loggerGO = new GameObject("InGameLogger");
             loggerGO.AddComponent<InGameLogger>();
             GameObject.DontDestroyOnLoad(loggerGO);
@@ -61,8 +60,6 @@ namespace SharedMusicPlayer
             VTNetworkManager.RegisterOverrideResource("RadioSyncNet/Prefab", prefab);
             Log("RadioNetSync prefab registered successfully", "Main");
 
-
-            // Ensure SharedRadioController exists early
             try
             {
                 if (SharedRadioController.Instance == null)
@@ -93,7 +90,6 @@ namespace SharedMusicPlayer
         {
             Log("Mod unload started", "Main");
             
-            // Save logs before cleanup
             InGameLogger.SaveLogsToFile();
             
             var musicManager = UnityEngine.Object.FindObjectOfType<MusicNetworkManager>();

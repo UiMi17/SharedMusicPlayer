@@ -276,13 +276,8 @@ namespace SharedMusicPlayer
             Logger.Log("Cancelling download...", "MusicNetworkManager");
             Debug.Log("[MusicNetworkManager]: Cancelling download");
 
-            // Set cancellation flag
             _isDownloadCancelled = true;
-
-            // Stop all network activity
             StopAll();
-
-            // Stop the receive coroutine if running
             if (_receiveCoroutine != null)
             {
                 StopCoroutine(_receiveCoroutine);
@@ -324,11 +319,9 @@ namespace SharedMusicPlayer
             if (briefingUI != null && briefingUI.updatingContentObj != null)
             {
                 SMPUIUtils.SetUpdatingText(briefingUI, "Download cancelled");
-                // Wait a moment to show the message, then hide
                 StartCoroutine(HideModalAfterDelay(2f));
             }
 
-            // Destroy cancel button and instruction text
             if (_cancelButton != null)
             {
                 Destroy(_cancelButton);
@@ -340,11 +333,7 @@ namespace SharedMusicPlayer
                 _cancelInstructionText = null;
             }
 
-            // Reset cancellation state after all cleanup is complete
-            // Use a coroutine to ensure this happens after modal is hidden
             StartCoroutine(ResetCancellationStateAfterDelay(2.5f));
-
-            // Clear expected file names
             _expectedFileNames.Clear();
 
             // Reset playlist build flag so it rebuilds on retry (for copilot)
@@ -371,10 +360,8 @@ namespace SharedMusicPlayer
                 var cockpitRadio = UnityEngine.Object.FindObjectOfType<CockpitRadio>();
                 if (cockpitRadio != null)
                 {
-                    // Stop music if playing
                     cockpitRadio.StopPlayingSong();
                     
-                    // Reset song index to 0
                     var songIdxField = typeof(CockpitRadio).GetField("songIdx", 
                         System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                     if (songIdxField != null)
@@ -383,7 +370,6 @@ namespace SharedMusicPlayer
                         Logger.Log("Reset pilot music state: stopped and set index to 0", "MusicNetworkManager");
                     }
 
-                    // Reset SharedRadioController index
                     if (SharedRadioController.Instance != null)
                     {
                         SharedRadioController.Instance.SetCurrentIndex(0);
@@ -545,7 +531,6 @@ namespace SharedMusicPlayer
 
         public IEnumerator BeginReceiveAndWaitCoroutine(ulong senderSteamId)
         {
-            // Reset cancellation state for new download session
             _isDownloadCancelled = false;
             _downloadedFilesInSession.Clear();
             _expectedFileNames.Clear();
@@ -566,19 +551,13 @@ namespace SharedMusicPlayer
                 SMPUIUtils.SetUpdatingText(briefingUI, "Loading Music Files (0%)");
                 briefingUI.updatingContentObj.SetActive(true);
 
-                // Create cancel instruction text (static, doesn't get updated)
                 CreateCancelInstructionText();
-                
-                // Create cancel button when modal is shown
                 CreateCancelButton();
             }
-
-            // Waiting for client with timeout
             float timeout = ReceiverTimeoutSeconds;
             float elapsed = 0f;
             while (_receiverClient == null && elapsed < timeout)
             {
-                // Check for cancellation
                 if (_isDownloadCancelled)
                 {
                     Logger.Log("Download cancelled while waiting for receiver client", "MusicNetworkManager");
@@ -599,10 +578,8 @@ namespace SharedMusicPlayer
             Logger.Log("BeginReceiveAndWait started — waiting for all files...", "MusicNetworkManager");
             Debug.Log("[MusicNetworkManager]: BeginReceiveAndWait started — waiting for all files...");
 
-            // Waiting for all files
             while (_receiverClient != null && !_receiverClient.AreAllFilesReceived())
             {
-                // Check for cancellation
                 if (_isDownloadCancelled)
                 {
                     Logger.Log("Download cancelled, exiting coroutine", "MusicNetworkManager");
@@ -634,7 +611,6 @@ namespace SharedMusicPlayer
 
             Logger.Log($"Exited file waiting loop - AreAllFilesReceived={_receiverClient.AreAllFilesReceived()}, CompletedFileCount={_receiverClient.CompletedFileCount}, ExpectedFileCount={_receiverClient.ExpectedFileCount}", "MusicNetworkManager");
 
-            // Check for cancellation before completing
             if (_isDownloadCancelled)
             {
                 Logger.Log("Download was cancelled, not setting ready flag", "MusicNetworkManager");
@@ -654,7 +630,6 @@ namespace SharedMusicPlayer
                 briefingUI.updatingContentObj.SetActive(false);
             }
 
-            // Destroy cancel button and instruction text
             if (_cancelButton != null)
             {
                 Destroy(_cancelButton);
@@ -669,8 +644,6 @@ namespace SharedMusicPlayer
             Logger.Log("All files received successfully.", "MusicNetworkManager");
             Debug.Log($"[MusicNetworkManager]: All files received successfully.");
 
-            // Set ready flag BEFORE stopping network (important for entry permission)
-            // This MUST be set even if StopAll() is called from elsewhere
             if (!_isDownloadCancelled)
             {
                 // Rebuild playlist now that all files are downloaded (for copilot)
@@ -691,7 +664,6 @@ namespace SharedMusicPlayer
 
             StopAll();
             
-            // Double-check: ensure flag is still set after StopAll (in case it was cleared)
             if (!_isDownloadCancelled && !SharedMusicState.IsCopilotReadyToEnter)
             {
                 Logger.LogWarn("IsCopilotReadyToEnter was cleared, re-setting it", "MusicNetworkManager");
@@ -711,11 +683,8 @@ namespace SharedMusicPlayer
         private IEnumerator ResetCancellationStateAfterDelay(float delay)
         {
             yield return new WaitForSeconds(delay);
-            // Reset all cancellation flags after cleanup is complete
             SharedMusicState.IsDownloadCancelled = false;
             _isDownloadCancelled = false;
-            
-            // Reset entering vehicle state in the patch
             Patch_EnterVehicle_BlockCopilot.ResetEnteringVehicleState();
             
             Logger.Log("Cancellation state reset - ready for new download attempt", "MusicNetworkManager");
@@ -736,10 +705,8 @@ namespace SharedMusicPlayer
 
             try
             {
-                // Find existing text component to copy font settings
                 Text existingText = briefingUI.updatingContentObj.GetComponentInChildren<Text>(includeInactive: true);
                 
-                // Create GameObject for cancel instruction text
                 GameObject instructionObj = new GameObject("CancelInstructionText");
                 instructionObj.SetActive(true);
                 RectTransform instructionRect = instructionObj.AddComponent<RectTransform>();
@@ -747,38 +714,29 @@ namespace SharedMusicPlayer
                 Transform parentTransform = briefingUI.updatingContentObj.transform;
                 instructionObj.transform.SetParent(parentTransform, false);
                 
-                // Get parent RectTransform to understand bounds
                 RectTransform parentRect = parentTransform as RectTransform;
                 float parentHeight = parentRect != null ? parentRect.rect.height : 200f;
                 
-                // Position relative to the main text component
-                // Find the main text component to position relative to it
                 Text mainText = briefingUI.updatingContentObj.GetComponentInChildren<Text>(includeInactive: true);
                 if (mainText != null)
                 {
                     RectTransform mainTextRect = mainText.GetComponent<RectTransform>();
                     if (mainTextRect != null)
                     {
-                        // Position instruction text below main text, using same horizontal anchors
                         instructionRect.anchorMin = new Vector2(0.5f, 0f);
                         instructionRect.anchorMax = new Vector2(0.5f, 0f);
                         instructionRect.pivot = new Vector2(0.5f, 0.5f);
                         instructionRect.sizeDelta = new Vector2(Mathf.Min(400, parentRect != null ? parentRect.rect.width - 20 : 400), 30);
                         
-                        // Calculate position: center horizontally, position above cancel button
-                        // Cancel button is at y=80, so place instruction at y=120 (40px above button)
-                        // But ensure it's within modal bounds (at least 10px from edges)
                         float yPos = 120f;
                         if (parentRect != null && yPos + 15 > parentHeight - 10)
                         {
-                            // Adjust if too high - place it lower but still above button
                             yPos = Mathf.Max(100f, parentHeight - 50f);
                         }
                         instructionRect.anchoredPosition = new Vector2(0, yPos);
                     }
                     else
                     {
-                        // Fallback: center horizontally, position above cancel button
                         instructionRect.anchorMin = new Vector2(0.5f, 0f);
                         instructionRect.anchorMax = new Vector2(0.5f, 0f);
                         instructionRect.pivot = new Vector2(0.5f, 0.5f);
@@ -788,7 +746,6 @@ namespace SharedMusicPlayer
                 }
                 else
                 {
-                    // Fallback: center horizontally, position above cancel button
                     instructionRect.anchorMin = new Vector2(0.5f, 0f);
                     instructionRect.anchorMax = new Vector2(0.5f, 0f);
                     instructionRect.pivot = new Vector2(0.5f, 0.5f);
@@ -799,10 +756,8 @@ namespace SharedMusicPlayer
                 var layoutEl = instructionObj.AddComponent<LayoutElement>();
                 layoutEl.ignoreLayout = true;
 
-                // Add Text component
                 Text instructionText = instructionObj.AddComponent<Text>();
                 
-                // Copy font settings from existing text if available
                 if (existingText != null)
                 {
                     instructionText.font = existingText.font;
@@ -816,15 +771,13 @@ namespace SharedMusicPlayer
                 instructionText.text = "Press ESC or B button to cancel";
                 instructionText.color = UnityEngine.Color.white;
                 instructionText.alignment = TextAnchor.MiddleCenter;
-                instructionText.raycastTarget = false; // Don't block clicks
+                instructionText.raycastTarget = false;
                 
-                // Ensure text is visible - make it slightly larger and ensure it's on top
                 if (instructionText.fontSize < 14)
                 {
                     instructionText.fontSize = 14;
                 }
                 
-                // Ensure the GameObject is active and visible
                 instructionObj.SetActive(true);
                 CanvasGroup cg = instructionObj.GetComponent<CanvasGroup>();
                 if (cg == null)
@@ -837,7 +790,6 @@ namespace SharedMusicPlayer
 
                 instructionObj.transform.SetAsLastSibling();
 
-                // Store reference
                 _cancelInstructionText = instructionText;
 
                 Logger.Log($"Cancel instruction text created successfully at position {instructionRect.anchoredPosition}, size {instructionRect.sizeDelta}", "MusicNetworkManager");
@@ -871,10 +823,8 @@ namespace SharedMusicPlayer
 
             try
             {
-                // Find existing text component in updatingContentObj to copy font settings
                 Text existingText = briefingUI.updatingContentObj.GetComponentInChildren<Text>(includeInactive: true);
                 
-                // Create button GameObject
                 GameObject cancelButtonObj = new GameObject("CancelDownloadButton");
                 cancelButtonObj.SetActive(true); // Ensure it's active
                 RectTransform buttonRect = cancelButtonObj.AddComponent<RectTransform>();
@@ -882,69 +832,51 @@ namespace SharedMusicPlayer
                 Transform parentTransform = briefingUI.updatingContentObj.transform;
                 cancelButtonObj.transform.SetParent(parentTransform, false);
                 
-                // Move button to end of sibling list so it renders on top
                 cancelButtonObj.transform.SetAsLastSibling();
-                
-                // Ensure button is on the same layer as parent
                 cancelButtonObj.layer = parentTransform.gameObject.layer;
 
-                // Get the RectTransform of the parent to understand its size
                 RectTransform parentRect = parentTransform as RectTransform;
                 float parentHeight = parentRect != null ? parentRect.rect.height : 200f;
                 
-                // Configure RectTransform - position below the progress text/content
                 buttonRect.sizeDelta = new Vector2(150, 50);
-                // Anchor to center horizontally, bottom vertically
                 buttonRect.anchorMin = new Vector2(0.5f, 0f);
                 buttonRect.anchorMax = new Vector2(0.5f, 0f);
                 buttonRect.pivot = new Vector2(0.5f, 0f);
-                // Position above bottom edge of modal (not screen bottom)
-                // Place it ~80px from bottom of modal content area
                 buttonRect.anchoredPosition = new Vector2(0, 80);
 
                 var btnLayoutEl = cancelButtonObj.AddComponent<LayoutElement>();
                 btnLayoutEl.ignoreLayout = true;
 
-                // Add Image component for button background
                 UnityEngine.UI.Image buttonImage = cancelButtonObj.AddComponent<UnityEngine.UI.Image>();
                 buttonImage.color = UnityEngine.Color.red;
-                buttonImage.raycastTarget = true; // Ensure it can receive clicks
+                buttonImage.raycastTarget = true;
 
-                // Add Button component
                 Button button = cancelButtonObj.AddComponent<Button>();
                 button.targetGraphic = buttonImage;
-                button.interactable = true; // Ensure button is interactable
+                button.interactable = true;
                 
-                // Configure button navigation (important for VR)
                 button.navigation = new Navigation { mode = Navigation.Mode.None };
                 
-                // Try to find an existing button to copy settings from
                 Button existingButton = briefingUI.updatingContentObj.GetComponentInParent<Button>();
                 if (existingButton != null)
                 {
-                    // Copy transition settings if available
                     button.transition = existingButton.transition;
                     button.colors = existingButton.colors;
                 }
                 
-                // Ensure the button is part of the Canvas hierarchy for VR interaction
-                // The Canvas should already have GraphicRaycaster for VR pointer interaction
                 Canvas canvas = briefingUI.canvasTf != null ? briefingUI.canvasTf.GetComponent<Canvas>() : null;
                 if (canvas == null)
                 {
-                    // Try to find canvas in parent hierarchy
                     canvas = briefingUI.updatingContentObj.GetComponentInParent<Canvas>();
                 }
                 if (canvas != null)
                 {
-                    // Ensure GraphicRaycaster exists for VR interaction
                     if (canvas.GetComponent<UnityEngine.UI.GraphicRaycaster>() == null)
                     {
                         canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
                     }
                 }
                 
-                // Double-check CanvasGroup settings - ensure it's not blocking
                 var cg = briefingUI.updatingContentObj.GetComponent<CanvasGroup>();
                 if (cg != null)
                 {
@@ -953,21 +885,17 @@ namespace SharedMusicPlayer
                     cg.ignoreParentGroups = false;
                 }
 
-                // Create child GameObject for text (standard Unity UI button structure)
                 GameObject textObj = new GameObject("Text");
                 RectTransform textRect = textObj.AddComponent<RectTransform>();
                 textObj.transform.SetParent(cancelButtonObj.transform, false);
                 
-                // Configure text RectTransform to fill button
                 textRect.anchorMin = Vector2.zero;
                 textRect.anchorMax = Vector2.one;
                 textRect.sizeDelta = Vector2.zero;
                 textRect.anchoredPosition = Vector2.zero;
 
-                // Add Text component to child
                 Text buttonText = textObj.AddComponent<Text>();
                 
-                // Copy font settings from existing text if available
                 if (existingText != null)
                 {
                     buttonText.font = existingText.font;
@@ -977,9 +905,8 @@ namespace SharedMusicPlayer
                 buttonText.color = UnityEngine.Color.white;
                 buttonText.fontSize = 20;
                 buttonText.alignment = TextAnchor.MiddleCenter;
-                buttonText.raycastTarget = false; // Text shouldn't block clicks
+                buttonText.raycastTarget = false;
 
-                // Add click handler with logging for debugging
                 button.onClick.AddListener(() => 
                 { 
                     Logger.Log("Cancel button clicked!", "MusicNetworkManager");
@@ -987,8 +914,6 @@ namespace SharedMusicPlayer
                     CancelDownload(); 
                 });
                 
-                // Test: Also add a pointer enter/exit handler to verify interaction
-                // This helps debug if the button is receiving pointer events
                 var eventTrigger = cancelButtonObj.AddComponent<UnityEngine.EventSystems.EventTrigger>();
                 var pointerEnter = new UnityEngine.EventSystems.EventTrigger.Entry();
                 pointerEnter.eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter;
@@ -1004,7 +929,6 @@ namespace SharedMusicPlayer
                 });
                 eventTrigger.triggers.Add(pointerClick);
 
-                // Store reference
                 _cancelButton = cancelButtonObj;
 
                 Logger.Log("Cancel button created successfully", "MusicNetworkManager");
@@ -1039,11 +963,8 @@ namespace SharedMusicPlayer
             private readonly Dictionary<ulong, bool> _fileCountSent = new();
             private readonly Dictionary<ulong, bool> _hashListSent = new();
             private readonly Dictionary<ulong, HashSet<string>> _filesToSendAfterHashCheck = new();
-            // Backup of original file list to rebuild _filesToSend on reconnection
             private readonly List<FileSendInfo> _originalFilesList = new();
-            // Store original file paths per target SteamId (from manager level)
             private readonly Dictionary<ulong, string[]> _originalFilePathsPerTarget = new Dictionary<ulong, string[]>();
-            // Reference to parent manager to access original files list
             private MusicNetworkManager _parentManager;
 
             /// <summary>
@@ -1241,9 +1162,7 @@ namespace SharedMusicPlayer
                         if (originalFilePaths != null && originalFilePaths.Length > 0)
                         {
                             Logger.Log($"Rebuilding file queue from original file list for {info.Identity.SteamId} ({originalFilePaths.Length} file(s))", "MusicSenderSocket");
-                            // Clear existing queue (may contain filtered files from previous connection)
                             _filesToSend.Clear();
-                            // Re-queue ALL original files - receiver will determine which ones it needs
                             int queuedCount = 0;
                             foreach (var filePath in originalFilePaths)
                             {
@@ -1261,7 +1180,6 @@ namespace SharedMusicPlayer
                         }
                         else if (_originalFilesList.Count > 0)
                         {
-                            // Fallback to socket's backup list if manager-level list not available
                             Logger.Log($"Rebuilding file queue from socket backup for {info.Identity.SteamId} ({_originalFilesList.Count} file(s))", "MusicSenderSocket");
                             _filesToSend.Clear();
                             int addedCount = 0;
@@ -1269,7 +1187,6 @@ namespace SharedMusicPlayer
                             {
                                 if (fileInfo.TargetSteamId == info.Identity.SteamId)
                                 {
-                                    // Create fresh copy without file bytes (will be loaded when needed)
                                     var freshFileInfo = new FileSendInfo
                                     {
                                         TargetSteamId = fileInfo.TargetSteamId,
@@ -1317,19 +1234,13 @@ namespace SharedMusicPlayer
                     _hashListSent.Remove(info.Identity.SteamId);
                     _filesToSendAfterHashCheck.Remove(info.Identity.SteamId);
                     
-                    // Clear current file being sent if it was for this connection
                     if (_currentFile.TargetSteamId == info.Identity.SteamId)
                     {
                         _waitingForAckChunkIndex = -1;
                         _ackTimer = 0f;
                         _lastChunkData = null;
-                        // Don't re-queue current file - we'll rebuild from original list on reconnection
-                        // This ensures we always offer ALL files, not just partially sent ones
                     }
                     
-                    // Clear filtered queue for this target - will be rebuilt from original list on reconnection
-                    // This ensures we always offer ALL files in hash list, not just filtered ones
-                    // Remove all files for this target from the queue
                     var tempQueue = new Queue<FileSendInfo>();
                     while (_filesToSend.Count > 0)
                     {
@@ -1339,7 +1250,6 @@ namespace SharedMusicPlayer
                             tempQueue.Enqueue(item);
                         }
                     }
-                    // Restore queue with only files for other targets
                     while (tempQueue.Count > 0)
                     {
                         _filesToSend.Enqueue(tempQueue.Dequeue());
@@ -1392,7 +1302,6 @@ namespace SharedMusicPlayer
                 }
                 else if (messageType == "NEED_FILES")
                 {
-                    // Receiver sent list of files they need
                     int needCount = reader.ReadInt32();
                     var neededFiles = new HashSet<string>();
                     for (int i = 0; i < needCount; i++)
@@ -1402,18 +1311,14 @@ namespace SharedMusicPlayer
                     
                     Logger.Log($"Receiver needs {needCount} file(s) out of {_filesToSend.Count} total", "MusicSenderSocket");
                     
-                    // Store which files to send
                     _filesToSendAfterHashCheck[identity.SteamId] = neededFiles;
                     
-                    // Load file bytes only for files that need to be sent
                     var filesToKeep = new Queue<FileSendInfo>();
                     foreach (var fileInfo in _filesToSend)
                     {
                         if (neededFiles.Contains(fileInfo.FileName))
                         {
-                            // Load file bytes now
                             var fileBytes = File.ReadAllBytes(fileInfo.FilePath);
-                            // Create new struct instance with updated values
                             var updatedFileInfo = new FileSendInfo
                             {
                                 TargetSteamId = fileInfo.TargetSteamId,
@@ -1439,7 +1344,6 @@ namespace SharedMusicPlayer
                         _filesToSend.Enqueue(fileInfo);
                     }
                     
-                    // Now send file count (even if 0) and start sending if needed
                     if (_connections.TryGetValue(identity.SteamId, out var conn))
                     {
                         SendFileCount(conn, identity.SteamId);
@@ -1491,7 +1395,6 @@ namespace SharedMusicPlayer
 
                 _currentFile = _filesToSend.Dequeue();
                 
-                // Ensure file bytes are loaded
                 if (_currentFile.FileBytes == null && !string.IsNullOrEmpty(_currentFile.FilePath))
                 {
                     _currentFile.FileBytes = File.ReadAllBytes(_currentFile.FilePath);
@@ -1691,7 +1594,6 @@ namespace SharedMusicPlayer
                     int fileCount = reader.ReadInt32();
                     Logger.Log($"Received hash list for {fileCount} file(s), comparing with local files...", "MusicReceiverClient");
                     
-                    // Store expected file names for tracking
                     if (_parentManager != null)
                     {
                         _parentManager._expectedFileNames.Clear();
@@ -1707,7 +1609,6 @@ namespace SharedMusicPlayer
                         int remoteSize = reader.ReadInt32();
                         int remoteHash = reader.ReadInt32();
                         
-                        // Store expected file name for tracking
                         if (_parentManager != null && !_parentManager._expectedFileNames.Contains(fileName))
                         {
                             _parentManager._expectedFileNames.Add(fileName);
@@ -1716,7 +1617,6 @@ namespace SharedMusicPlayer
                         bool needsFile = true;
                         string localFilePath = null;
                         
-                        // Check SharedRadioMusic first, then local RadioMusic
                         string sharedFilePath = Path.Combine(sharedPath, fileName);
                         string localRadioFilePath = Path.Combine(localRadioPath, fileName);
                         
@@ -1742,7 +1642,6 @@ namespace SharedMusicPlayer
                                         needsFile = false;
                                         Logger.Log($"File '{fileName}' already exists and matches (hash={localHash})", "MusicReceiverClient");
                                         
-                                        // Copy to SharedRadioMusic if it's in local RadioMusic
                                         if (localFilePath == localRadioFilePath)
                                         {
                                             try
@@ -1783,7 +1682,6 @@ namespace SharedMusicPlayer
                         }
                     }
                     
-                    // Send back list of files we need
                     using var needMs = new MemoryStream();
                     using var needWriter = new BinaryWriter(needMs);
                     needWriter.Write("NEED_FILES");
@@ -1797,7 +1695,6 @@ namespace SharedMusicPlayer
                     _hostConnection.SendMessage(needMs.ToArray(), SendType.Reliable);
                     Logger.Log($"Sent NEED_FILES response: need {neededFiles.Count} out of {fileCount} file(s)", "MusicReceiverClient");
                     
-                    // If no files needed, mark as complete
                     if (neededFiles.Count == 0)
                     {
                         _isAllFilesReceived = true;
@@ -1810,7 +1707,6 @@ namespace SharedMusicPlayer
                     Logger.Log($"Sender will send {_expectedFileCount} file(s)", "MusicReceiverClient");
                     Debug.Log($"[MusicReceiverClient]: Sender will send {_expectedFileCount} file(s)");
                     
-                    // If 0 files, mark as complete immediately
                     if (_expectedFileCount == 0)
                     {
                         _isAllFilesReceived = true;
@@ -1850,7 +1746,6 @@ namespace SharedMusicPlayer
                         ReceivedChunks++;
                     }
 
-                    // Sending an ACK
                     using var ackMs = new MemoryStream();
                     using var ackWriter = new BinaryWriter(ackMs);
                     ackWriter.Write("ACK");
@@ -1858,16 +1753,13 @@ namespace SharedMusicPlayer
                     ackWriter.Flush();
                     _hostConnection.SendMessage(ackMs.ToArray(), SendType.Reliable);
 
-                    // Validation of file's receivement 
                     if (fileInfo.ReceivedChunksCount == totalChunks)
                     {
-                        // Saving file
                         string directoryPath = Path.Combine(VTResources.gameRootDirectory, "SharedRadioMusic");
-                        Directory.CreateDirectory(directoryPath); // Ensure directory exists
+                        Directory.CreateDirectory(directoryPath);
 
                         string savePath = Path.Combine(directoryPath, fileName);
                         
-                        // Delete existing file if it exists (we're replacing it)
                         if (File.Exists(savePath))
                         {
                             try
@@ -1889,7 +1781,6 @@ namespace SharedMusicPlayer
                         Logger.Log($"Saved received file to: {savePath}", "MusicReceiverClient");
                         Debug.Log($"[MusicReceiverClient]: Saved received file to: {savePath}");
 
-                        // Track downloaded file for cancellation cleanup
                         if (_parentManager != null && !_parentManager._downloadedFilesInSession.Contains(fileName))
                         {
                             _parentManager._downloadedFilesInSession.Add(fileName);
@@ -1898,7 +1789,6 @@ namespace SharedMusicPlayer
                         _receivingFiles.Remove(fileName);
                         _completedFilesCount++;
 
-                        // If all files were received successfully - _isAllFilesReceived = true;
                         Logger.Log($"File completed: {fileName}, CompletedFileCount={_completedFilesCount}, ExpectedFileCount={_expectedFileCount}", "MusicReceiverClient");
                         if (_expectedFileCount >= 0 && _completedFilesCount >= _expectedFileCount)
                         {
@@ -1906,8 +1796,6 @@ namespace SharedMusicPlayer
                             Logger.Log("All files received successfully", "MusicReceiverClient");
                             Debug.Log("[MusicReceiverClient]: All files received.");
                             
-                            // Immediately set the ready flag when all files are received
-                            // This ensures entry permission even if coroutine is interrupted
                             if (_parentManager != null && !_parentManager._isDownloadCancelled)
                             {
                                 SharedMusicState.IsCopilotReadyToEnter = true;

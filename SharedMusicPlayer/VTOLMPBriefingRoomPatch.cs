@@ -21,10 +21,8 @@ namespace SharedMusicPlayer
     {
 		Logger.Log("EnterVehicle called", "VTOLMPBriefingRoomPatch");
 		
-		// Check if we're already in the process of entering vehicle
 		if (_isEnteringVehicle)
 		{
-			// Check for timeout - reset if stuck
 			if (Time.realtimeSinceStartup - _enterVehicleStartTime > ENTER_VEHICLE_TIMEOUT)
 			{
 				Logger.LogWarn("EnterVehicle timeout detected, resetting flag", "VTOLMPBriefingRoomPatch");
@@ -102,7 +100,6 @@ namespace SharedMusicPlayer
 		}
 		else
 		{
-			// Check if download was cancelled - block entry even if ready flag is set
 			if (SharedMusicState.IsDownloadCancelled)
 			{
 				Logger.Log("Download was cancelled, blocking vehicle entry", "VTOLMPBriefingRoomPatch");
@@ -120,7 +117,6 @@ namespace SharedMusicPlayer
 
 				if (ownerSteamId != null)
 				{
-					// Set flag to prevent multiple coroutines
 					if (!_isEnteringVehicle)
 					{
 						_isEnteringVehicle = true;
@@ -138,7 +134,6 @@ namespace SharedMusicPlayer
 				}
 				else
 				{
-					// No owner identified - allow entry (might be single-player or owner not yet available)
 					Logger.LogWarn("Non-owner: No owner SteamID found, allowing entry without file transfer", "VTOLMPBriefingRoomPatch");
 					Debug.LogWarning("[SharedMusicPlayer]: Non-owner: No owner SteamID found, allowing entry without file transfer");
 					return true;
@@ -200,11 +195,8 @@ namespace SharedMusicPlayer
         Logger.Log($"Coroutine started - waiting for file reception from {steamId}...", "VTOLMPBriefingRoomPatch");
         Debug.Log("[SharedMusicPlayer]: Coroutine started - waiting for file reception...");
         
-        // Yield cannot be inside try-catch, so we handle errors after yield completes
-        // Note: BeginReceiveAndWaitCoroutine will set _receiveCoroutine internally
         yield return manager.BeginReceiveAndWaitCoroutine(steamId);
 
-        // Check if coroutine completed successfully (manager might have been destroyed)
         if (manager == null || instance == null)
         {
             Logger.LogWarn("Manager or instance destroyed during wait, aborting EnterVehicle", "VTOLMPBriefingRoomPatch");
@@ -214,7 +206,6 @@ namespace SharedMusicPlayer
             yield break;
         }
 
-        // Check if download was cancelled
         if (SharedMusicState.IsDownloadCancelled)
         {
             Logger.Log("Download was cancelled, not entering vehicle", "VTOLMPBriefingRoomPatch");
@@ -231,7 +222,6 @@ namespace SharedMusicPlayer
             Debug.Log("[SharedMusicPlayer]: Files received - entering vehicle");
             SharedMusicState.IsCopilotReadyToEnter = true;
 
-            // Reset flag before calling EnterVehicle (which may trigger the patch again)
             _isEnteringVehicle = false;
             _enterVehicleStartTime = -1f;
             _waitThenEnterCoroutine = null;
@@ -247,8 +237,6 @@ namespace SharedMusicPlayer
         }
     }
 }
-
-// Button creation removed from Awake - now created dynamically in BeginReceiveAndWaitCoroutine when modal is shown
 
     public static class SharedMusicState
     {

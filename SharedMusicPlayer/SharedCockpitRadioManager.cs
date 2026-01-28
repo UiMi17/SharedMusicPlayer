@@ -41,7 +41,6 @@ namespace SharedMusicPlayer
         /// </summary>
         public void ReinitializeForNewVehicle()
         {
-            // Prevent multiple simultaneous reinitializations
             if (_isReinitializing)
             {
                 Logger.Log("Reinitialization already in progress, skipping duplicate call", "SharedCockpitRadioManager");
@@ -51,14 +50,12 @@ namespace SharedMusicPlayer
             Logger.Log("Reinitializing SharedCockpitRadioManager for new vehicle", "SharedCockpitRadioManager");
             _isReinitializing = true;
             
-            // Stop any running initialization coroutine
             if (_initCoroutine != null)
             {
                 StopCoroutine(_initCoroutine);
                 _initCoroutine = null;
             }
             
-            // Reset state
             _isInitialized = false;
             _cockpitRadio = null;
             _radioNetSync = null;
@@ -69,7 +66,6 @@ namespace SharedMusicPlayer
 
         private System.Collections.IEnumerator InitializeCoroutine()
         {
-            // Wait for CockpitRadio to exist
             while (_cockpitRadio == null)
             {
                 _cockpitRadio = UnityEngine.Object.FindObjectOfType<CockpitRadio>();
@@ -79,7 +75,6 @@ namespace SharedMusicPlayer
 
             Logger.Log("CockpitRadio found, waiting for RadioNetSync...", "SharedCockpitRadioManager");
 
-            // Wait for RadioNetSync
             VTNetworking.VTNetworkManager.NetInstantiateRequest request = VTNetworking.VTNetworkManager.NetInstantiate(
                 "RadioSyncNet/Prefab",
                 Vector3.zero,
@@ -110,10 +105,8 @@ namespace SharedMusicPlayer
                 }
             }
 
-            // Ensure playlist is built
             SharedRadioController.Instance?.EnsurePlaylist();
 
-            // Verify CockpitRadio is still valid before marking as initialized
             if (_cockpitRadio == null)
             {
                 Logger.LogWarn("InitializeCoroutine: CockpitRadio became null before initialization complete, re-finding...", "SharedCockpitRadioManager");
@@ -126,18 +119,16 @@ namespace SharedMusicPlayer
             }
 
             _isInitialized = true;
-            _isReinitializing = false; // Clear reinitialization flag
-            _initCoroutine = null; // Clear coroutine reference when done
+            _isReinitializing = false;
+            _initCoroutine = null;
             Logger.Log($"SharedCockpitRadioManager initialized successfully (_cockpitRadio={_cockpitRadio != null}, _radioNetSync={_radioNetSync != null})", "SharedCockpitRadioManager");
 
-            // If non-owner, request state from owner to sync
             if (!IsOwner())
             {
                 ulong? ownerId = GetOtherCrewId();
                 if (ownerId != null && _radioNetSync != null)
                 {
                     Logger.Log($"Requesting music state from owner {ownerId}", "SharedCockpitRadioManager");
-                    // Wait a bit for everything to settle, then request state
                     yield return new WaitForSeconds(0.5f);
                     _radioNetSync.RequestState((ulong)ownerId);
                 }
@@ -171,7 +162,6 @@ namespace SharedMusicPlayer
                 var baseSlot = scene.GetMCBaseSlot(mySlot);
                 if (baseSlot == null || baseSlot.mcSlotCount <= 1)
                 {
-                    // Single-crew vehicle
                     return null;
                 }
 
@@ -215,17 +205,14 @@ namespace SharedMusicPlayer
                 $"ExecuteCommand: command={command}, isAutoAdvance={isAutoAdvance}, isRemoteCall={isRemoteCall}, isOwner={isOwner}, otherId={otherId}",
                 "SharedCockpitRadioManager");
 
-            // Handle auto-advance: only owner executes and broadcasts
             if (isAutoAdvance && !isOwner)
             {
                 Logger.Log("ExecuteCommand: Suppressing non-owner auto-advance", "SharedCockpitRadioManager");
-                return; // Non-owner suppresses auto-advance, waits for owner's broadcast
+                return;
             }
 
-            // Execute the command locally
             VtolVRMod.CockpitRadioRedirectPatch.isRemoteCall = true;
 
-            // Stop streaming coroutine for Stop command
             if (command == RadioCommand.Stop)
             {
                 var streamRoutineField = typeof(CockpitRadio).GetField("streamRoutine", 
@@ -242,7 +229,6 @@ namespace SharedMusicPlayer
                 }
             }
 
-            // Execute the appropriate CockpitRadio method
             switch (command)
             {
                 case RadioCommand.PlayToggle:
@@ -261,7 +247,6 @@ namespace SharedMusicPlayer
 
             VtolVRMod.CockpitRadioRedirectPatch.isRemoteCall = false;
 
-            // Broadcast to other player (only for local user actions, not remote calls)
             if (!isRemoteCall && otherId != null && _radioNetSync != null)
             {
                 switch (command)
@@ -365,7 +350,6 @@ namespace SharedMusicPlayer
 
             Logger.Log("HandleStateRequest: Copilot entered cabin, checking current state and stopping if playing", "SharedCockpitRadioManager");
 
-            // Get current state
             int currentSongIndex = 0;
             bool isCurrentlyPlaying = false;
             bool isPaused = false;
@@ -401,33 +385,28 @@ namespace SharedMusicPlayer
             catch (Exception ex)
             {
                 Logger.LogError($"HandleStateRequest: Error reading state: {ex}", "SharedCockpitRadioManager");
-                return; // Don't proceed if we can't read state
+                return;
             }
 
-            // Stop music if playing (as requested - stop pilot's music when copilot actually enters)
             if (isCurrentlyPlaying)
             {
                 Logger.Log("HandleStateRequest: Music is playing, stopping it", "SharedCockpitRadioManager");
                 ExecuteCommand(RadioCommand.Stop, isRemoteCall: true);
             }
 
-            // Send state to copilot (always stopped state after stopping)
-            // Use coroutine to ensure RPC is sent after a small delay to avoid timing issues
             StartCoroutine(SendStateToCopilotCoroutine(currentSongIndex));
         }
 
         private System.Collections.IEnumerator SendStateToCopilotCoroutine(int songIndex)
         {
-            // Small delay to ensure copilot's RadioNetSync is fully ready
             yield return new WaitForSeconds(0.1f);
 
             ulong? copilotId = GetOtherCrewId();
-            if (copilotId != null && _radioNetSync != null)
-            {
-                try
+                if (copilotId != null && _radioNetSync != null)
                 {
-                    // Get filename for the current song index to help with matching
-                    string currentFileName = null;
+                    try
+                    {
+                        string currentFileName = null;
                     if (SharedRadioController.Instance != null)
                     {
                         currentFileName = SharedRadioController.Instance.GetFileNameForIndex(songIndex);
@@ -462,13 +441,11 @@ namespace SharedMusicPlayer
 
             try
             {
-                // Ensure playlist is up-to-date before syncing (important after download/cancellation)
                 if (SharedRadioController.Instance != null)
                 {
                     SharedRadioController.Instance.RebuildPlaylist();
                     Logger.Log("HandleStateSync: Rebuilt playlist before syncing state", "SharedCockpitRadioManager");
                     
-                    // Validate index is within bounds - if not, clamp it and log warning
                     int playlistCount = SharedRadioController.Instance.GetPlaylistPaths().Count;
                     if (songIndex < 0 || songIndex >= playlistCount)
                     {
@@ -477,7 +454,6 @@ namespace SharedMusicPlayer
                     }
                 }
 
-                // Set song index
                 var songIdxField = typeof(CockpitRadio).GetField("songIdx", 
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                 if (songIdxField != null)
@@ -486,14 +462,11 @@ namespace SharedMusicPlayer
                     Logger.Log($"HandleStateSync: Set song index to {songIndex}", "SharedCockpitRadioManager");
                 }
 
-                // Sync to SharedRadioController as well (this will clamp index to valid range)
                 if (SharedRadioController.Instance != null)
                 {
                     SharedRadioController.Instance.SetCurrentIndex(songIndex);
                 }
 
-                // Music should always be stopped when copilot joins (per user requirement)
-                // So we don't start it even if isPlaying is true
                 Logger.Log("HandleStateSync: State synced, music remains stopped (per requirement when copilot joins)", "SharedCockpitRadioManager");
             }
             catch (Exception ex)

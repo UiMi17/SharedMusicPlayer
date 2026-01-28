@@ -76,17 +76,14 @@ namespace SharedMusicPlayer
             _instance = this;
             DontDestroyOnLoad(gameObject);
             
-            // Subscribe to scene load events
             SceneManager.sceneLoaded += OnSceneLoaded;
             Debug.Log("[InGameLogger] Subscribed to SceneManager.sceneLoaded event");
             
-            // Ensure GameObject stays active across scenes
             gameObject.SetActive(true);
             Debug.Log($"[InGameLogger] GameObject active state: {gameObject.activeInHierarchy}, enabled: {enabled}");
             
             Debug.Log("[InGameLogger] Awake() complete");
             
-            // Add a test log entry to verify the system works
             AddLog(LogLevel.Info, "InGameLogger", "Console initialized successfully!");
             Debug.Log("[InGameLogger] Added test log entry");
         }
@@ -95,7 +92,6 @@ namespace SharedMusicPlayer
         {
             Debug.Log($"[InGameLogger] OnEnable() called. Instance is this: {_instance == this}, GameObject active: {gameObject.activeInHierarchy}");
             
-            // Re-activate if we're the instance and somehow got disabled
             if (_instance == this)
             {
                 gameObject.SetActive(true);
@@ -105,7 +101,6 @@ namespace SharedMusicPlayer
 
         private void Update()
         {
-            // Check for toggle key
             if (Input.GetKeyDown(ToggleKey))
             {
                 ToggleConsole();
@@ -116,13 +111,11 @@ namespace SharedMusicPlayer
         {
             if (!_isVisible) return;
             
-            // Initialize styles on first use
             if (!_stylesInitialized)
             {
                 InitializeStyles();
             }
             
-            // Calculate console area (bottom half of screen)
             float screenWidth = Screen.width;
             float screenHeight = Screen.height;
             float consoleHeight = screenHeight * 0.5f;
@@ -133,49 +126,39 @@ namespace SharedMusicPlayer
             Rect headerRect = new Rect(0, screenHeight - consoleHeight, screenWidth, headerHeight);
             Rect logAreaRect = new Rect(0, screenHeight - consoleHeight + headerHeight, screenWidth, logAreaHeight);
             
-            // Draw background box
             GUI.Box(consoleRect, "", _boxStyle);
             
-            // Draw header
             GUI.Label(headerRect, "SharedMusicPlayer Console (Press F8 to toggle)", _headerStyle);
             
-            // Draw scrollable log area
             lock (_logLock)
             {
                 List<LogEntry> entries = new List<LogEntry>(_logEntries);
                 
-                // Calculate content width (account for scrollbar)
-                float contentWidth = screenWidth - 30f; // Leave space for scrollbar
+                float contentWidth = screenWidth - 30f;
                 float lineHeight = _logStyle.lineHeight;
                 float padding = 5f;
                 
-                // Calculate total content height by measuring all entries
-                float totalContentHeight = padding; // Start with top padding
+                float totalContentHeight = padding;
                 foreach (var entry in entries)
                 {
                     string formatted = entry.ToFormattedString();
-                    // Calculate how many lines this entry will take when wrapped
                     float entryHeight = _logStyle.CalcHeight(new GUIContent(formatted), contentWidth - (padding * 2));
-                    totalContentHeight += entryHeight + 2f; // Add small spacing between entries
+                    totalContentHeight += entryHeight + 2f;
                 }
-                totalContentHeight += padding; // Bottom padding
+                totalContentHeight += padding;
                 
-                // Ensure minimum height
                 float contentHeight = Mathf.Max(logAreaHeight + 10f, totalContentHeight);
                 
-                // Scroll view - content area matches available width
                 Rect scrollViewContent = new Rect(0, 0, contentWidth, contentHeight);
                 _scrollPosition = GUI.BeginScrollView(logAreaRect, _scrollPosition, scrollViewContent);
                 
                 float yPos = padding;
                 
-                // Show all entries (oldest to newest, scrolling from top)
                 foreach (var entry in entries)
                 {
                     string formatted = entry.ToFormattedString();
                     Color originalColor = GUI.color;
                     
-                    // Set color based on log level
                     switch (entry.Level)
                     {
                         case LogLevel.Debug:
@@ -192,15 +175,13 @@ namespace SharedMusicPlayer
                             break;
                     }
                     
-                    // Calculate height for this entry with word wrapping
                     float entryHeight = _logStyle.CalcHeight(new GUIContent(formatted), contentWidth - (padding * 2));
                     Rect entryRect = new Rect(padding, yPos, contentWidth - (padding * 2), entryHeight);
                     
-                    // Draw the text with word wrapping
                     GUI.Label(entryRect, formatted, _logStyle);
                     GUI.color = originalColor;
                     
-                    yPos += entryHeight + 2f; // Move down for next entry
+                    yPos += entryHeight + 2f;
                 }
                 
                 GUI.EndScrollView();
@@ -265,7 +246,6 @@ namespace SharedMusicPlayer
             
             if (_isVisible)
             {
-                // Auto-scroll to bottom when opening
                 lock (_logLock)
                 {
                     if (_stylesInitialized && _logStyle != null)
@@ -277,13 +257,12 @@ namespace SharedMusicPlayer
                             string formatted = entry.ToFormattedString();
                             totalHeight += _logStyle.CalcHeight(new GUIContent(formatted), contentWidth - 10f) + 2f;
                         }
-                        totalHeight += 5f; // Bottom padding
+                        totalHeight += 5f;
                         _scrollPosition = new Vector2(0, totalHeight);
                     }
                     else
                     {
-                        // Fallback if styles not initialized yet
-                        _scrollPosition = new Vector2(0, 10000f); // Large value to scroll to bottom
+                        _scrollPosition = new Vector2(0, 10000f);
                     }
                 }
             }
@@ -298,7 +277,6 @@ namespace SharedMusicPlayer
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             Debug.Log($"[InGameLogger] Scene loaded: {scene.name}, mode: {mode}");
-            // Ensure we stay active
             if (_instance == this)
             {
                 gameObject.SetActive(true);
@@ -310,7 +288,6 @@ namespace SharedMusicPlayer
             Debug.Log("[InGameLogger] OnDestroy() called. Instance is this: " + (_instance == this));
             if (_instance == this)
             {
-                // Save logs before destroying
                 SaveLogsToFile();
                 
                 SceneManager.sceneLoaded -= OnSceneLoaded;
@@ -325,7 +302,6 @@ namespace SharedMusicPlayer
         /// </summary>
         public static void SaveLogsToFile()
         {
-            // Prevent saving multiple times
             if (_hasBeenSaved || _instance == null)
                 return;
 
@@ -343,7 +319,6 @@ namespace SharedMusicPlayer
                     string gameRoot = VTResources.gameRootDirectory;
                     string modDirectory = Path.Combine(gameRoot, "@Mod Loader", "Mods", "SharedMusicPlayer");
 
-                    // Create directory if it doesn't exist
                     if (!Directory.Exists(modDirectory))
                     {
                         Directory.CreateDirectory(modDirectory);
