@@ -11,9 +11,10 @@ This VTOL VR mod allows you to **sync your in-cockpit MP3 player with your copil
 ## 🚀 How it works
 
 When the copilot enters the cockpit:
-1. The mod transfers all `.mp3` files from the host’s music folder
+1. The mod transfers all `.mp3` files from the host's music folder
 2. The mission **pauses until the transfer is complete**, ensuring reliable syncing before takeoff
-3. After syncing, both players can **play, pause, or switch tracks in sync**
+3. During transfer, the copilot can **cancel the download** by pressing `ESC` or the `B button` on their VR controller
+4. After syncing, both players can **play, pause, or switch tracks in sync**
 
 ---
 
@@ -21,8 +22,8 @@ When the copilot enters the cockpit:
 
 1. Install via VTOL VR Mod Loader
 2. Place your `.mp3` files in:  
-   `VtolVR/RadioMusic/` *(on the host’s side)*
-3. That’s it — copilot will receive the music automatically on mission start
+   `VtolVR/RadioMusic/` *(on the host's side)*
+3. That's it — copilot will receive the music automatically on mission start
 
 ---
 
@@ -39,12 +40,9 @@ When the copilot enters the cockpit:
 - 🔊 Fully synchronized MP3 player
 - 🧠 Reliable transfer logic with retries and fallback
 - ⚙️ No server or configuration required — uses Steam P2P sockets/VtolVR RPC calls
-
----
-
-## ✅ Planned Improvements
-
-- [ ] Cancel music loading button
+- ❌ Cancel download option (press `ESC` or `B button` during transfer)
+- 📊 Real-time transfer progress display
+- 🔍 Smart file deduplication (skips files that already exist with matching hash)
 
 ---
 

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace SharedMusicPlayer
 {
@@ -6,19 +6,28 @@ namespace SharedMusicPlayer
     {
         private static readonly string ModName = "SharedMusicPlayer";
 
-        public static void Log(object message)
+        public static void Log(object message, string category = null)
         {
-            Debug.Log($"[{ModName}] [INFO]: {message.ToString()}");
+            string cat = category ?? ModName;
+            InGameLogger.AddLog(LogLevel.Info, cat, message?.ToString() ?? "null");
         }
 
-        public static void LogWarn(object obj)
+        public static void LogDebug(object message, string category = null)
         {
-            Debug.LogWarning($"[{ModName}] [WARN]: {obj}");
+            string cat = category ?? ModName;
+            InGameLogger.AddLog(LogLevel.Debug, cat, message?.ToString() ?? "null");
         }
 
-        public static void LogError(object message)
+        public static void LogWarn(object message, string category = null)
         {
-            Debug.LogError($"[{ModName}] [ERROR]: {message.ToString()}");
+            string cat = category ?? ModName;
+            InGameLogger.AddLog(LogLevel.Warn, cat, message?.ToString() ?? "null");
+        }
+
+        public static void LogError(object message, string category = null)
+        {
+            string cat = category ?? ModName;
+            InGameLogger.AddLog(LogLevel.Error, cat, message?.ToString() ?? "null");
         }
     }
 }
